@@ -1,3 +1,4 @@
+use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
 
@@ -17,9 +18,9 @@ const RESTORE_DELAY: Duration = Duration::from_millis(300);
 /// focus (pressing a global shortcut does not steal focus from it), then
 /// restores the clipboard to whatever it held before.
 ///
-/// Runs entirely on a background thread: `tauri-plugin-clipboard-manager`
-/// explicitly warns against reading/writing the clipboard from the main
-/// thread (risk of deadlock on Linux), and the delay before restoring must
+/// The clipboard read/write happens on a background thread:
+/// `tauri-plugin-clipboard-manager` explicitly warns against doing that on
+/// the main thread (risk of deadlock on Linux), and the restore delay must
 /// not block the global-shortcut event dispatch.
 ///
 /// On macOS, simulating a keystroke requires QuickPaste to be granted
@@ -38,7 +39,7 @@ pub fn paste_snippet(app: &AppHandle, content: String) {
             return;
         }
 
-        if let Err(err) = simulate_paste_keystroke() {
+        if let Err(err) = simulate_paste_keystroke(&app) {
             eprintln!("quickpaste: failed to simulate paste keystroke: {err}");
         }
 
@@ -55,8 +56,29 @@ pub fn paste_snippet(app: &AppHandle, content: String) {
     });
 }
 
+/// Hops onto the main thread to press the paste combo, and blocks this
+/// (background) thread until it's done.
+///
+/// This isn't optional on macOS: confirmed via a real crash log, enigo's
+/// `Key::Unicode` handling there resolves the current keyboard layout
+/// through Carbon's Text Services Manager, which is guarded by an internal
+/// `dispatch_assert_queue` — calling it off the main thread aborts the
+/// whole process (EXC_BREAKPOINT), it doesn't just fail gracefully. Since
+/// `paste_snippet` runs on a background thread, the keystroke itself has to
+/// be explicitly dispatched back to the main thread.
+fn simulate_paste_keystroke(app: &AppHandle) -> Result<(), String> {
+    let (tx, rx) = mpsc::channel();
+
+    app.run_on_main_thread(move || {
+        let _ = tx.send(press_paste_combo());
+    })
+    .map_err(|e| e.to_string())?;
+
+    rx.recv().map_err(|e| e.to_string())?
+}
+
 #[cfg(target_os = "macos")]
-fn simulate_paste_keystroke() -> Result<(), String> {
+fn press_paste_combo() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     // enigo's macOS backend has no named `Key::V` — letters are entered via
     // `Key::Unicode` there, unlike the Windows/Linux backends.
@@ -73,7 +95,7 @@ fn simulate_paste_keystroke() -> Result<(), String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn simulate_paste_keystroke() -> Result<(), String> {
+fn press_paste_combo() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     enigo
         .key(Key::Control, Direction::Press)
