@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Sidebar } from "./features/snippets/components/Sidebar";
 import { SnippetEditor } from "./features/snippets/components/SnippetEditor";
+import { useSnippetTriggerToast } from "./features/snippets/hooks/useSnippetTriggerToast";
+import { Toast } from "./components/ui/Toast";
 import { useSnippetsStore } from "./store/snippetsStore";
 
 function App() {
@@ -8,6 +10,7 @@ function App() {
   const status = useSnippetsStore((s) => s.status);
   const error = useSnippetsStore((s) => s.error);
   const clearError = useSnippetsStore((s) => s.clearError);
+  const toast = useSnippetTriggerToast();
 
   useEffect(() => {
     load();
@@ -33,6 +36,7 @@ function App() {
           <SnippetEditor />
         )}
       </div>
+      {toast && <Toast message={toast} />}
     </div>
   );
 }

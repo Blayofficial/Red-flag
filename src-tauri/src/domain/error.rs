@@ -10,6 +10,8 @@ pub enum AppError {
     NotFound,
     #[error("that shortcut is already used by another snippet")]
     DuplicateShortcut,
+    #[error("that shortcut couldn't be registered: {0}")]
+    ShortcutUnavailable(String),
     #[error("something went wrong saving your data: {0}")]
     Storage(String),
 }
