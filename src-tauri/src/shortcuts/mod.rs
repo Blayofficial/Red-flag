@@ -1,15 +1,17 @@
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use crate::domain::Snippet;
+use crate::paste;
+use crate::storage::SnippetRepository;
 
 /// Emitted (with the triggered snippet's id as payload) whenever a
 /// registered global shortcut fires. The frontend uses this purely to show
-/// which snippet fired, for now — the actual paste happens entirely in
-/// Rust and never needs a round trip through the webview.
+/// which snippet fired — the actual paste happens entirely in Rust below
+/// and never needs a round trip through the webview.
 pub const SNIPPET_TRIGGERED_EVENT: &str = "snippet-triggered";
 
 /// A shortcut that couldn't be registered with the OS — most commonly
@@ -20,18 +22,21 @@ pub struct ShortcutRegistrationFailure {
 }
 
 /// Keeps the OS-registered global shortcuts in sync with whichever
-/// snippets currently have one assigned. `sync` diffs against what's
-/// currently registered rather than blindly re-registering everything, so
-/// it's safe (and cheap) to call after every create/update/delete/duplicate.
+/// snippets currently have one assigned, and pastes the right snippet when
+/// one fires. `sync` diffs against what's currently registered rather than
+/// blindly re-registering everything, so it's safe (and cheap) to call
+/// after every create/update/delete/duplicate.
 pub struct ShortcutsService {
     app: AppHandle,
+    repo: Arc<dyn SnippetRepository>,
     registered: Mutex<HashMap<String, String>>, // shortcut string -> snippet id
 }
 
 impl ShortcutsService {
-    pub fn new(app: AppHandle) -> Self {
+    pub fn new(app: AppHandle, repo: Arc<dyn SnippetRepository>) -> Self {
         Self {
             app,
+            repo,
             registered: Mutex::new(HashMap::new()),
         }
     }
@@ -70,14 +75,30 @@ impl ShortcutsService {
             }
 
             let app_for_handler = self.app.clone();
+            let repo_for_handler = self.repo.clone();
             let snippet_id_for_handler = snippet_id.clone();
             let result = self.app.global_shortcut().on_shortcut(
                 shortcut.as_str(),
                 move |_app, _shortcut, event| {
-                    if event.state() == ShortcutState::Pressed {
-                        let _ = app_for_handler
-                            .emit(SNIPPET_TRIGGERED_EVENT, snippet_id_for_handler.clone());
+                    if event.state() != ShortcutState::Pressed {
+                        return;
                     }
+
+                    // Look up fresh content rather than capturing it at
+                    // registration time — the snippet may have been edited
+                    // since without its shortcut (and thus this closure)
+                    // changing.
+                    let Ok(snippets) = repo_for_handler.list() else {
+                        return;
+                    };
+                    let Some(snippet) =
+                        snippets.into_iter().find(|s| s.id == snippet_id_for_handler)
+                    else {
+                        return;
+                    };
+
+                    let _ = app_for_handler.emit(SNIPPET_TRIGGERED_EVENT, snippet.id.clone());
+                    paste::paste_snippet(&app_for_handler, snippet.content);
                 },
             );
 

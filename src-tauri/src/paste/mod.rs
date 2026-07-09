@@ -1,0 +1,63 @@
+use std::thread;
+use std::time::Duration;
+
+use enigo::{Direction, Enigo, Key, Keyboard, Settings};
+use tauri::AppHandle;
+use tauri_plugin_clipboard_manager::ClipboardExt;
+
+/// How long to wait after simulating the paste keystroke before restoring
+/// the user's previous clipboard contents. Long enough for the target
+/// application to have consumed the paste in the common case; this is a
+/// timed guess; there is no signal we can wait on to know the paste
+/// actually landed. See the architecture notes on this trade-off.
+const RESTORE_DELAY: Duration = Duration::from_millis(300);
+
+/// Copies `content` to the clipboard, simulates Ctrl+V so it lands in
+/// whatever application currently has focus (pressing a global shortcut
+/// does not steal focus from it), then restores the clipboard to whatever
+/// it held before.
+///
+/// Runs entirely on a background thread: `tauri-plugin-clipboard-manager`
+/// explicitly warns against reading/writing the clipboard from the main
+/// thread (risk of deadlock on Linux), and the delay before restoring must
+/// not block the global-shortcut event dispatch.
+pub fn paste_snippet(app: &AppHandle, content: String) {
+    let app = app.clone();
+    thread::spawn(move || {
+        let previous_text = app.clipboard().read_text().ok();
+
+        if let Err(err) = app.clipboard().write_text(content) {
+            eprintln!("quickpaste: failed to set clipboard: {err}");
+            return;
+        }
+
+        if let Err(err) = simulate_paste_keystroke() {
+            eprintln!("quickpaste: failed to simulate paste keystroke: {err}");
+        }
+
+        thread::sleep(RESTORE_DELAY);
+
+        // If the clipboard held something other than text (an image, for
+        // example), `previous_text` is `None` and we deliberately leave our
+        // snippet on the clipboard rather than guessing how to restore it.
+        if let Some(previous) = previous_text {
+            if let Err(err) = app.clipboard().write_text(previous) {
+                eprintln!("quickpaste: failed to restore clipboard: {err}");
+            }
+        }
+    });
+}
+
+fn simulate_paste_keystroke() -> Result<(), String> {
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+    enigo
+        .key(Key::Control, Direction::Press)
+        .map_err(|e| e.to_string())?;
+    enigo
+        .key(Key::V, Direction::Click)
+        .map_err(|e| e.to_string())?;
+    enigo
+        .key(Key::Control, Direction::Release)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
