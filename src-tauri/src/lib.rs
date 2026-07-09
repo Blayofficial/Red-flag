@@ -19,6 +19,10 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
@@ -55,6 +59,8 @@ pub fn run() {
             commands::update_snippet,
             commands::delete_snippet,
             commands::duplicate_snippet,
+            commands::get_launch_on_startup,
+            commands::set_launch_on_startup,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -33,7 +33,7 @@ impl SqliteSnippetRepository {
 }
 
 fn storage_err(err: rusqlite::Error) -> AppError {
-    AppError::Storage(err.to_string())
+    AppError::Internal(err.to_string())
 }
 
 /// Constraint violations on write are, in this schema, always the `shortcut`

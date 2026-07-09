@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { Sidebar } from "./features/snippets/components/Sidebar";
 import { SnippetEditor } from "./features/snippets/components/SnippetEditor";
+import { SettingsPanel } from "./features/settings/components/SettingsPanel";
 import { useSnippetTriggerToast } from "./features/snippets/hooks/useSnippetTriggerToast";
 import { Toast } from "./components/ui/Toast";
 import { useSnippetsStore } from "./store/snippetsStore";
+import { useUiStore } from "./store/uiStore";
 
 function App() {
   const load = useSnippetsStore((s) => s.load);
@@ -11,6 +13,7 @@ function App() {
   const error = useSnippetsStore((s) => s.error);
   const clearError = useSnippetsStore((s) => s.clearError);
   const toast = useSnippetTriggerToast();
+  const view = useUiStore((s) => s.view);
 
   useEffect(() => {
     load();
@@ -28,7 +31,9 @@ function App() {
       )}
       <div className="flex flex-1 overflow-hidden">
         <Sidebar />
-        {status === "loading" ? (
+        {view === "settings" ? (
+          <SettingsPanel />
+        ) : status === "loading" ? (
           <main className="flex flex-1 items-center justify-center text-sm text-neutral-500">
             Loading snippets…
           </main>

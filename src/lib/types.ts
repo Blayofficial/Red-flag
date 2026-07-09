@@ -24,7 +24,7 @@ export interface SnippetUpdate {
 
 /** Shape of the rejected value from a failed Tauri command (see AppError in Rust). */
 export interface ApiError {
-  kind: "NotFound" | "DuplicateShortcut" | "ShortcutUnavailable" | "Storage";
+  kind: "NotFound" | "DuplicateShortcut" | "ShortcutUnavailable" | "Internal";
   message?: string | null;
 }
 
@@ -37,8 +37,8 @@ export function friendlyErrorMessage(err: unknown): string {
       return "That shortcut couldn't be registered — it may already be in use by another running application.";
     case "NotFound":
       return "That snippet no longer exists.";
-    case "Storage":
-      return apiErr.message || "Something went wrong saving your data.";
+    case "Internal":
+      return apiErr.message || "Something went wrong.";
     default:
       return "Something went wrong. Please try again.";
   }

@@ -1,8 +1,9 @@
 use serde::Serialize;
 
 /// Errors surfaced to the frontend. Kept small and user-meaningful —
-/// anything internal (SQL details, etc.) is collapsed into `Storage`'s
-/// message rather than leaking implementation details as separate variants.
+/// anything internal (SQL errors, OS/autostart failures, etc.) is
+/// collapsed into `Internal`'s message rather than leaking implementation
+/// details as separate variants per subsystem.
 #[derive(Debug, thiserror::Error, Serialize)]
 #[serde(tag = "kind", content = "message")]
 pub enum AppError {
@@ -12,6 +13,6 @@ pub enum AppError {
     DuplicateShortcut,
     #[error("that shortcut couldn't be registered: {0}")]
     ShortcutUnavailable(String),
-    #[error("something went wrong saving your data: {0}")]
-    Storage(String),
+    #[error("something went wrong: {0}")]
+    Internal(String),
 }
