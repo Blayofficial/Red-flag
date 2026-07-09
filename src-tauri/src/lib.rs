@@ -4,10 +4,11 @@ mod paste;
 mod shortcuts;
 mod state;
 mod storage;
+mod tray;
 
 use std::sync::Arc;
 
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 
 use shortcuts::ShortcutsService;
 use state::AppState;
@@ -33,7 +34,20 @@ pub fn run() {
 
             app.manage(AppState { repo, shortcuts });
 
+            tray::setup(app.handle())?;
+
             Ok(())
+        })
+        // Closing the main window hides it instead of quitting — QuickPaste
+        // is meant to run quietly in the background, reachable via the
+        // tray icon. Quitting is a deliberate action (tray menu → Quit).
+        .on_window_event(|window, event| {
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::list_snippets,
