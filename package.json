@@ -1,0 +1,14 @@
+{
+  "name": "barrierfree",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "scripts": {
+    "api:dev": "npm run dev --workspace=services/api",
+    "api:migrate": "npm run migrate --workspace=services/api",
+    "api:test": "npm test --workspace=services/api",
+    "mobile:start": "npm run start --workspace=apps/mobile"
+  }
+}

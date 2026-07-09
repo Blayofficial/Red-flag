@@ -1,0 +1,23 @@
+services:
+  postgres:
+    # Standard postgres image — the postgresql-contrib package it ships with
+    # includes cube/earthdistance, which is all the geospatial "nearest
+    # station" query needs. Full PostGIS would be unused weight.
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: barrierfree
+      POSTGRES_PASSWORD: barrierfree
+      POSTGRES_DB: barrierfree
+    ports:
+      - "5432:5432"
+    volumes:
+      - barrierfree-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U barrierfree"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  barrierfree-postgres-data:
