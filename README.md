@@ -79,8 +79,10 @@ npm run web          # or: npm run ios / npm run android
 
 ## Data: what's real, what's seeded, what's still to do
 
-**The pilot dataset the app ships with (`npm run seed`) is real, cited
-data for ~33 stations** — not fabricated. It includes:
+Seeding (`npm run seed`) loads two layers, kept deliberately distinct:
+
+**1. A researched pilot batch — ~33 stations with real, cited barrier
+data.** Not fabricated:
 - Every station named in a genuine TfL Freedom of Information response
   listing London Underground/Overground stations without full gatelines
 - A handful verified directly against train operating companies' own
@@ -94,11 +96,30 @@ data for ~33 stations** — not fabricated. It includes:
   Junction) left `UNKNOWN` and flagged for manual review, rather than
   guessed
 
-**This is a pilot, not full London coverage.** Scaling to all ~470
-London rail/Underground stations needs the real ingestion pipeline
-(`services/api/src/ingestion/tflStopPoints.ts`) run somewhere with normal
-internet access — this project was built in a sandboxed environment whose
-network policy blocks outbound requests to `api.tfl.gov.uk`,
+**2. Full network-name coverage — ~420 more stations** (`src/ingestion/networkStations.ts`),
+added after an initial pass shipped with only the 33 above — nowhere near
+representative of the real network, and rightly called out as such. This
+covers London Underground (253 of 272 real stations), London Overground
+(110 of ~113, across all 6 lines renamed in Nov 2024), DLR (44 of 45), and
+the Elizabeth line (41 of 41) — station names and line assignments
+double-checked against current sources, not just memory, since especially
+the Overground restructuring is recent. Every one of these ~420 stations
+is `UNKNOWN` and flagged for manual review: this layer fixes *journey
+search coverage*, not barrier-status accuracy, which is still what the
+pilot batch above provides. National Rail is barely touched (5 stations,
+all from the pilot) — London has hundreds of National Rail stations across
+many operators, and covering those properly needs the real ingestion
+pipeline below, not manual compilation.
+
+**Coordinates for the ~420-station layer are approximate**, not geocoded —
+fine for a search/list UI, not for precise map pins.
+
+**Scaling to fully verified, authoritative coverage** — correct
+coordinates, complete National Rail, and actual researched barrier status
+for the ~420 currently-`UNKNOWN` stations — needs the real ingestion
+pipeline (`services/api/src/ingestion/tflStopPoints.ts`) run somewhere with
+normal internet access. This project was built in a sandboxed environment
+whose network policy blocks outbound requests to `api.tfl.gov.uk`,
 `naptan.api.dft.gov.uk`, and even `en.wikipedia.org` entirely (confirmed,
 not assumed — every fetch attempt returned a 403 at the proxy level). The
 ingestion script itself is real, type-checked code; it's simply never been

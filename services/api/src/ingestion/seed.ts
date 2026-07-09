@@ -15,6 +15,7 @@
  */
 import { pool } from "../db/pool.js";
 import type { BarrierSource, BarrierStatus, TransportMode } from "../domain/types.js";
+import { NETWORK_STATIONS } from "./networkStations.js";
 
 interface SeedStation {
   name: string;
@@ -130,35 +131,74 @@ async function upsertLine(name: string, mode: TransportMode): Promise<string> {
   return rows[0].id;
 }
 
+async function insertStationWithBarrier(
+  station: Pick<SeedStation, "name" | "latitude" | "longitude" | "operator" | "mode" | "lines">,
+  barrier: SeedStation["barrier"],
+): Promise<void> {
+  const stationId = await upsertStation(station as SeedStation);
+
+  for (const lineName of station.lines) {
+    const lineId = await upsertLine(lineName, station.mode);
+    await pool.query(
+      `INSERT INTO station_lines (station_id, line_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [stationId, lineId],
+    );
+  }
+
+  await pool.query(
+    `INSERT INTO barrier_info (station_id, status, confidence_score, sources, notes, needs_manual_review, last_verified_date)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE)`,
+    [
+      stationId,
+      barrier.status,
+      barrier.confidence,
+      JSON.stringify(barrier.sources),
+      barrier.notes ?? null,
+      barrier.needsReview ?? false,
+    ],
+  );
+}
+
 async function seed(): Promise<void> {
   await pool.query("TRUNCATE stations, lines, station_lines, barrier_info CASCADE");
 
   for (const station of STATIONS) {
-    const stationId = await upsertStation(station);
+    await insertStationWithBarrier(station, station.barrier);
+  }
 
-    for (const lineName of station.lines) {
-      const lineId = await upsertLine(lineName, station.mode);
-      await pool.query(
-        `INSERT INTO station_lines (station_id, line_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [stationId, lineId],
-      );
-    }
+  // Full-network coverage (Underground/Overground/DLR/Elizabeth line) —
+  // real station names/lines, but UNKNOWN barrier status by default. Skips
+  // anything already covered by the researched pilot batch above, matched
+  // by (mode, normalized name) — matching by name alone would wrongly drop
+  // e.g. Stratford's Overground/DLR/Elizabeth line rows just because the
+  // pilot batch already has a *tube*-mode Stratford entry; same name,
+  // different physical platforms/mode, still needs its own row.
+  const pilotKeys = new Set(STATIONS.map((s) => `${s.mode}:${normalizeName(s.name)}`));
+  const networkOnly = NETWORK_STATIONS.filter((s) => !pilotKeys.has(`${s.mode}:${normalizeName(s.name)}`));
 
-    await pool.query(
-      `INSERT INTO barrier_info (station_id, status, confidence_score, sources, notes, needs_manual_review, last_verified_date)
-       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE)`,
-      [
-        stationId,
-        station.barrier.status,
-        station.barrier.confidence,
-        JSON.stringify(station.barrier.sources),
-        station.barrier.notes ?? null,
-        station.barrier.needsReview ?? false,
-      ],
+  const operatorByMode: Record<TransportMode, string> = {
+    tube: "London Underground",
+    overground: "London Overground",
+    dlr: "DLR",
+    "elizabeth-line": "Elizabeth line",
+    "national-rail": "National Rail",
+    tram: "London Trams",
+  };
+
+  for (const station of networkOnly) {
+    await insertStationWithBarrier(
+      { ...station, operator: operatorByMode[station.mode] },
+      {
+        status: "UNKNOWN",
+        confidence: 0.2,
+        sources: [],
+        notes: "Not yet researched — part of the bulk network-coverage import, not the verified pilot batch.",
+        needsReview: true,
+      },
     );
   }
 
-  console.log(`Seeded ${STATIONS.length} stations.`);
+  console.log(`Seeded ${STATIONS.length} researched + ${networkOnly.length} network-coverage stations.`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
