@@ -1,15 +1,15 @@
 # QuickPaste
 
-A Windows desktop app that removes repetitive copy-paste. Save snippets once,
-paste them anywhere with global keyboard shortcuts (`Alt+1`–`Alt+9` by
-default) — works even while the app is minimized.
+A macOS desktop app that removes repetitive copy-paste. Save snippets once,
+paste them anywhere with global keyboard shortcuts (`Option+1`–`Option+9` by
+default) — works even while the app is minimized to the menu bar.
 
 ## Status
 
-**Phase 1** — project scaffold and static dark-mode UI shell (sidebar +
-snippet editor layout). No backend logic yet: the snippet list is
-placeholder data and the editor/buttons are inert. See the architecture
-notes in the project history for the full phase roadmap.
+All 7 planned phases are built: snippet storage (SQLite), global shortcuts,
+the paste engine (clipboard + simulated keystroke + restore), the menu bar
+icon, and settings (launch at login, plus groundwork for more shortcut
+modifier options later). A final polish pass (Phase 8) is still to come.
 
 ## Stack
 
@@ -17,24 +17,32 @@ notes in the project history for the full phase roadmap.
 - React 19 + TypeScript + Vite
 - Tailwind CSS
 - Zustand (frontend state)
+- SQLite (via `rusqlite`) for snippet storage
 
 ## Project structure
 
 ```
 src/                     React frontend
   features/snippets/     snippet list + editor UI
-  features/settings/     settings UI (added in a later phase)
+  features/settings/     settings UI (launch at login, modifier key)
   components/ui/         reusable UI primitives
-  lib/api/               typed wrappers around Tauri commands (added in a later phase)
-  lib/types.ts           shared TS types mirroring the Rust domain model
-  store/                 frontend state (zustand)
+  lib/api/                typed wrappers around Tauri commands
+  lib/types.ts             shared TS types mirroring the Rust domain model
+  store/                   frontend state (zustand)
 src-tauri/                Rust backend — all OS integration lives here
+  src/domain/              Snippet types + app-wide error type
+  src/storage/             SQLite repository + schema migrations
+  src/shortcuts/           global shortcut registration/sync
+  src/paste/               clipboard write + simulated paste + restore
+  src/tray.rs              menu bar icon + Open/Quit menu
+  src/commands/            Tauri IPC handlers (thin, call into the above)
 ```
 
 ## Prerequisites
 
-Install the Tauri prerequisites for your OS: https://tauri.app/start/prerequisites/
-(on Windows this is the MSVC build tools + WebView2, usually already present).
+- [Rust](https://rustup.rs)
+- [Node.js](https://nodejs.org)
+- Xcode Command Line Tools (`xcode-select --install`)
 
 ## Running it
 
@@ -43,15 +51,22 @@ npm install
 npm run tauri dev
 ```
 
-## Testing this phase
+## Required macOS permission
+
+QuickPaste simulates a paste keystroke to get snippet text into whatever
+app you're using, which macOS only allows for apps granted **Accessibility**
+permission. The first time a shortcut fires, macOS should prompt you; if it
+doesn't (or if pasting silently does nothing), open **System Settings →
+Privacy & Security → Accessibility** and enable QuickPaste manually.
+
+## Testing
 
 - `npm run build` — typechecks and builds the frontend.
-- `npm run tauri dev` — opens the app window; you should see the dark sidebar
-  with four placeholder snippets (Subject line, Cold email, Calendly link,
-  LinkedIn message) and the editor panel on the right showing the selected
-  snippet's content. Clicking snippets in the sidebar switches the editor
-  content. Buttons are intentionally disabled — they're wired up in later
-  phases.
+- `npm run tauri dev` — opens the app window. Create a snippet, assign it an
+  Option+1–9 shortcut, then try it from another app (Notes, Mail, a browser).
+  Quitting via the window's close button should leave QuickPaste running in
+  the menu bar — use the menu bar icon's Quit item to actually exit.
+- `cd src-tauri && cargo test` — runs the storage layer's unit tests.
 
 ## Recommended IDE setup
 

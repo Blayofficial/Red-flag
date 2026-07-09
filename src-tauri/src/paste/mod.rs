@@ -12,15 +12,22 @@ use tauri_plugin_clipboard_manager::ClipboardExt;
 /// actually landed. See the architecture notes on this trade-off.
 const RESTORE_DELAY: Duration = Duration::from_millis(300);
 
-/// Copies `content` to the clipboard, simulates Ctrl+V so it lands in
-/// whatever application currently has focus (pressing a global shortcut
-/// does not steal focus from it), then restores the clipboard to whatever
-/// it held before.
+/// Copies `content` to the clipboard, simulates the OS paste shortcut
+/// (Cmd+V on macOS) so it lands in whatever application currently has
+/// focus (pressing a global shortcut does not steal focus from it), then
+/// restores the clipboard to whatever it held before.
 ///
 /// Runs entirely on a background thread: `tauri-plugin-clipboard-manager`
 /// explicitly warns against reading/writing the clipboard from the main
 /// thread (risk of deadlock on Linux), and the delay before restoring must
 /// not block the global-shortcut event dispatch.
+///
+/// On macOS, simulating a keystroke requires QuickPaste to be granted
+/// Accessibility permission (System Settings → Privacy & Security →
+/// Accessibility). Without it, this silently does nothing — macOS doesn't
+/// surface a Rust-level error for a denied synthetic event, it just drops
+/// it. There's no reliable way to detect that from here; it needs to be
+/// communicated to the user directly (tracked as Phase 8 polish).
 pub fn paste_snippet(app: &AppHandle, content: String) {
     let app = app.clone();
     thread::spawn(move || {
@@ -48,6 +55,24 @@ pub fn paste_snippet(app: &AppHandle, content: String) {
     });
 }
 
+#[cfg(target_os = "macos")]
+fn simulate_paste_keystroke() -> Result<(), String> {
+    let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
+    // enigo's macOS backend has no named `Key::V` — letters are entered via
+    // `Key::Unicode` there, unlike the Windows/Linux backends.
+    enigo
+        .key(Key::Meta, Direction::Press)
+        .map_err(|e| e.to_string())?;
+    enigo
+        .key(Key::Unicode('v'), Direction::Click)
+        .map_err(|e| e.to_string())?;
+    enigo
+        .key(Key::Meta, Direction::Release)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
 fn simulate_paste_keystroke() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default()).map_err(|e| e.to_string())?;
     enigo

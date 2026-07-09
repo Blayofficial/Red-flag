@@ -5,7 +5,7 @@ export interface Snippet {
   id: string;
   name: string;
   content: string;
-  /** e.g. "Alt+1". Null means the snippet has no shortcut assigned. */
+  /** e.g. "Option+1". Null means the snippet has no shortcut assigned. */
   shortcut: string | null;
   position: number;
 }

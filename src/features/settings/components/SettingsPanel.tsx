@@ -50,7 +50,7 @@ export function SettingsPanel() {
             onChange={toggleLaunchOnStartup}
             className="h-4 w-4 rounded border-neutral-700 bg-neutral-900"
           />
-          Launch QuickPaste when Windows starts
+          Launch QuickPaste when you log in
         </label>
       </section>
 
@@ -59,20 +59,32 @@ export function SettingsPanel() {
           Shortcut modifier key
         </h2>
         <select
-          value="alt"
+          value="option"
           disabled
           className="w-56 rounded-md border border-neutral-800 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-200 outline-none disabled:opacity-70"
         >
-          <option value="alt">Alt (default)</option>
-          <option value="ctrl-shift" disabled>
-            Ctrl+Shift (coming soon)
+          <option value="option">Option ⌥ (default)</option>
+          <option value="cmd-option" disabled>
+            Cmd+Option (coming soon)
           </option>
           <option value="custom" disabled>
             Custom combination (coming soon)
           </option>
         </select>
         <p className="text-xs text-neutral-500">
-          Snippet shortcuts use Alt+1 through Alt+9 for now. More modifier options are planned.
+          Snippet shortcuts use Option+1 through Option+9 for now. More modifier options are
+          planned.
+        </p>
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="text-xs font-medium uppercase tracking-wide text-neutral-500">
+          Permissions
+        </h2>
+        <p className="text-xs text-neutral-500">
+          QuickPaste needs Accessibility permission to paste into other apps. If shortcuts don't
+          paste anything, open System Settings → Privacy &amp; Security → Accessibility and enable
+          QuickPaste.
         </p>
       </section>
     </main>
